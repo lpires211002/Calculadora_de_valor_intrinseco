@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ValorAcción — Calculadora de Valor Intrínseco</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --surface2: #1a1a24;
+      --border: #2a2a3a;
+      --accent: #c8f04a;
+      --accent2: #4af0c8;
+      --accent3: #f04a8c;
+      --text: #e8e8f0;
+      --muted: #6868a0;
+      --gold: #f0c84a;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(200, 240, 74, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(200, 240, 74, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(200, 240, 74, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 56px;
+      animation: fadeDown 0.8s ease both;
+    }
+
+    .logo-tag {
+      display: inline-block;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      border: 1px solid rgba(200, 240, 74, 0.3);
+      padding: 6px 16px;
+      border-radius: 2px;
+      margin-bottom: 20px;
+      background: rgba(200, 240, 74, 0.04);
+    }
+
+    h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(36px, 6vw, 64px);
+      line-height: 1.05;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 300;
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .search-section {
+      animation: fadeUp 0.8s 0.2s ease both;
+      margin-bottom: 48px;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 8px 8px 24px;
+      align-items: center;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    .search-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent), 0 0 40px rgba(200, 240, 74, 0.08);
+    }
+
+    .search-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      white-space: nowrap;
+    }
+
+    #ticker-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-family: 'DM Mono', monospace;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      width: 100%;
+    }
+
+    #ticker-input::placeholder {
+      color: var(--border);
+      font-weight: 300;
+    }
+
+    .search-btn {
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 14px 28px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.2s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .search-btn:hover {
+      background: #d8ff5a;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(200, 240, 74, 0.3);
+    }
+
+    .search-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .quick-tickers {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .quick-btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      background: transparent;
+      padding: 5px 12px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 1px;
+    }
+
+    .quick-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: rgba(200, 240, 74, 0.05);
+    }
+
+    .status-msg {
+      text-align: center;
+      padding: 20px;
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      animation: fadeUp 0.4s ease;
+    }
+
+    .status-msg.error {
+      color: var(--accent3);
+    }
+
+    .status-msg.loading {
+      color: var(--muted);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .progress-wrap {
+      max-width: 680px;
+      margin: 12px auto 0;
+    }
+
+    .progress-bar {
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+
+    .api-note {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 12px;
+      opacity: 0.6;
+    }
+
+    .company-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 40px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .company-info h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 32px;
+      margin-bottom: 4px;
+    }
+
+    .company-meta {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .company-ticker {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: var(--accent);
+      background: rgba(200, 240, 74, 0.08);
+      border: 1px solid rgba(200, 240, 74, 0.2);
+      padding: 3px 10px;
+      border-radius: 2px;
+      letter-spacing: 2px;
+    }
+
+    .company-sector {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .company-price-block {
+      text-align: right;
+    }
+
+    .current-price {
+      font-family: 'DM Serif Display', serif;
+      font-size: 42px;
+      line-height: 1;
+    }
+
+    .price-change {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .price-change.pos {
+      color: var(--accent2);
+    }
+
+    .price-change.neg {
+      color: var(--accent3);
+    }
+
+    .metrics-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 32px;
+    }
+
+    .metric-cell {
+      background: var(--surface);
+      padding: 18px 20px;
+      transition: background 0.2s;
+    }
+
+    .metric-cell:hover {
+      background: var(--surface2);
+    }
+
+    .metric-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .metric-val {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      color: var(--text);
+    }
+
+    .methods-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .method-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s, transform 0.2s;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .method-card:hover {
+      border-color: rgba(200, 240, 74, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .method-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--card-accent, var(--accent));
+      opacity: 0.7;
+    }
+
+    .method-card:nth-child(1) {
+      --card-accent: var(--accent);
+      animation-delay: 0.1s;
+    }
+
+    .method-card:nth-child(2) {
+      --card-accent: var(--accent2);
+      animation-delay: 0.2s;
+    }
+
+    .method-card:nth-child(3) {
+      --card-accent: var(--gold);
+      animation-delay: 0.3s;
+    }
+
+    .method-card:nth-child(4) {
+      --card-accent: var(--accent3);
+      animation-delay: 0.4s;
+    }
+
+    .method-author {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .method-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+
+    .method-formula {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      border-radius: 2px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .method-inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .input-label {
+      font-size: 12px;
+      color: var(--muted);
+      flex: 1;
+    }
+
+    .input-value {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 2px;
+      width: 100px;
+      text-align: right;
+    }
+
+    .input-value:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .result-block {
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+    }
+
+    .result-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .result-value {
+      font-family: 'DM Serif Display', serif;
+      font-size: 36px;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+
+    .verdict-badge {
+      display: inline-flex;
+      align-items: center;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      padding: 5px 12px;
+      border-radius: 2px;
+      text-transform: uppercase;
+    }
+
+    .verdict-badge.undervalued {
+      background: rgba(74, 240, 200, 0.1);
+      color: var(--accent2);
+      border: 1px solid rgba(74, 240, 200, 0.2);
+    }
+
+    .verdict-badge.overvalued {
+      background: rgba(240, 74, 140, 0.1);
+      color: var(--accent3);
+      border: 1px solid rgba(240, 74, 140, 0.2);
+    }
+
+    .verdict-badge.fair {
+      background: rgba(240, 200, 74, 0.1);
+      color: var(--gold);
+      border: 1px solid rgba(240, 200, 74, 0.2);
+    }
+
+    .verdict-badge.na {
+      background: rgba(104, 104, 160, 0.1);
+      color: var(--muted);
+      border: 1px solid rgba(104, 104, 160, 0.2);
+    }
+
+    .margin-bar {
+      margin-top: 12px;
+      height: 4px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .margin-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 1s ease;
+    }
+
+    .comparison-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 32px;
+      margin-bottom: 32px;
+    }
+
+    .section-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .comparison-table th {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: left;
+      padding: 0 16px 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .comparison-table td {
+      padding: 14px 16px 14px 0;
+      font-size: 14px;
+      border-bottom: 1px solid rgba(42, 42, 58, 0.5);
+      vertical-align: middle;
+    }
+
+    .comparison-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .tbl-serif {
+      font-family: 'DM Serif Display', serif;
+      font-size: 16px;
+    }
+
+    .tbl-mono {
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+    }
+
+    .pos {
+      color: var(--accent2);
+    }
+
+    .neg {
+      color: var(--accent3);
+    }
+
+    .disclaimer {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.7;
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      font-weight: 300;
+    }
+
+    #results {
+      display: none;
+    }
+
+    @keyframes fadeDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrapper">
+
+    <header>
+      <div class="logo-tag">↑ Value Investing Tools</div>
+      <h1>Valor <em>Intrínseco</em><br>de Acciones</h1>
+      <p class="subtitle">Graham · DCF · Buffett · Lynch.<br>Ingresá el símbolo y calculamos el valor real vs. el precio
+        de mercado.</p>
+    </header>
+
+    <div class="search-section">
+      <div class="search-box">
+        <span class="search-label">TICKER</span>
+        <input type="text" id="ticker-input" placeholder="AAPL" maxlength="6" autocomplete="off" />
+        <button class="search-btn" id="search-btn" onclick="analyzeStock()">Analizar →</button>
+      </div>
+      <div class="quick-tickers">
+        <span
+          style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px;">Ejemplos:</span>
+        <button class="quick-btn" onclick="quickSearch('AAPL')">AAPL</button>
+        <button class="quick-btn" onclick="quickSearch('MSFT')">MSFT</button>
+        <button class="quick-btn" onclick="quickSearch('GOOGL')">GOOGL</button>
+        <button class="quick-btn" onclick="quickSearch('TSLA')">TSLA</button>
+        <button class="quick-btn" onclick="quickSearch('AMZN')">AMZN</button>
+        <button class="quick-btn" onclick="quickSearch('KO')">KO</button>
+        <button class="quick-btn" onclick="quickSearch('NVDA')">NVDA</button>
+        <button class="quick-btn" onclick="quickSearch('JPM')">JPM</button>
+      </div>
+      <p class="api-note">Powered by Yahoo Finance · Datos en tiempo real</p>
+      <div class="progress-wrap">
+        <div class="progress-bar" id="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="status-area"></div>
+    <div id="results"></div>
+
+  </div>
+  <script>
+    // ── Config ────────────────────────────────────────────────────────────────
+    // The local Python proxy runs on port 8765.
+    // If you open this file directly (file://) without the server it will fail →
+    // start it with: python3 server.py  then open http://localhost:8765
+    const API_BASE = 'http://localhost:8765';
+
+    let currentData = {};
+
+    document.getElementById('ticker-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') analyzeStock();
+    });
+    document.getElementById('ticker-input').addEventListener('input', e => {
+      e.target.value = e.target.value.toUpperCase();
+    });
+
+    function quickSearch(t) {
+      document.getElementById('ticker-input').value = t;
+      analyzeStock();
+    }
+
+    function setStatus(msg, type = 'loading') {
+      const el = document.getElementById('status-area');
+      if (!msg) { el.innerHTML = ''; return; }
+      el.innerHTML = `<div class="status-msg ${type}">${type === 'loading' ? '<span class="spinner"></span>' : ''}${msg}</div>`;
+    }
+
+    function setProgress(pct) {
+      const bar = document.getElementById('progress-bar');
+      const fill = document.getElementById('progress-fill');
+      if (pct <= 0) { bar.style.display = 'none'; return; }
+      bar.style.display = 'block';
+      fill.style.width = pct + '%';
+      if (pct >= 100) setTimeout(() => { bar.style.display = 'none'; fill.style.width = '0%'; }, 800);
+    }
+
+    // ── Fetch via local proxy ─────────────────────────────────────────────────
+    async function fetchYahooData(ticker) {
+      let resp;
+      try {
+        resp = await fetch(`${API_BASE}/quote?symbol=${encodeURIComponent(ticker)}`);
+      } catch (e) {
+        throw new Error(
+          'No se pudo conectar al servidor local. ' +
+          'Asegurate de haber iniciado: python3 server.py'
+        );
+      }
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: resp.status }));
+        throw new Error(err.error || `Error ${resp.status}`);
+      }
+
+      const json = await resp.json();
+      const result = json?.quoteResponse?.result?.[0];
+
+      if (!result) {
+        throw new Error(`No se encontraron datos para "${ticker}". Verificá el ticker (ej: AAPL, MSFT).`);
+      }
+
+      const price = result.regularMarketPrice;
+      if (!price || price <= 0) {
+        throw new Error(`Precio no disponible para "${ticker}".`);
+      }
+
+      // Growth rate: earningsGrowth → revenueGrowth → 8%
+      let growthRate = 8;
+      if (result.earningsGrowth != null && isFinite(result.earningsGrowth) && Math.abs(result.earningsGrowth) < 1) {
+        growthRate = result.earningsGrowth * 100;
+      } else if (result.revenueGrowth != null && isFinite(result.revenueGrowth)) {
+        growthRate = result.revenueGrowth * 100;
+      }
+      growthRate = Math.min(Math.max(growthRate, 0.5), 40);
+
+      // FCF per share
+      let fcfPerShare = null;
+      if (result.freeCashflow && result.sharesOutstanding && result.sharesOutstanding > 0) {
+        fcfPerShare = result.freeCashflow / result.sharesOutstanding;
+      }
+
+      const beta = (result.beta && isFinite(result.beta)) ? result.beta : 1.0;
+      const wacc = 0.043 + beta * 0.055;
+
+      return {
+        name: result.longName || result.shortName || ticker,
+        ticker: ticker.toUpperCase(),
+        sector: result.sector || result.industry || '',
+        price,
+        eps: result.epsTrailingTwelveMonths || result.trailingEps || null,
+        pe: result.trailingPE || null,
+        pbv: result.priceToBook || null,
+        bookValue: result.bookValue || null,
+        roe: result.returnOnEquity || null,
+        fcfPerShare,
+        growthRate,
+        beta,
+        wacc,
+        change1d: result.regularMarketChangePercent || 0,
+      };
+    }
+
+    async function analyzeStock() {
+      const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
+      if (!ticker) return;
+
+      const btn = document.getElementById('search-btn');
+      btn.disabled = true;
+      document.getElementById('results').style.display = 'none';
+      setProgress(20);
+      setStatus(`Obteniendo datos de ${ticker}…`, 'loading');
+
+      try {
+        setProgress(55);
+        const d = await fetchYahooData(ticker);
+        currentData = d;
+
+        setProgress(90);
+        renderResults(d);
+        setStatus('');
+        setProgress(100);
+        document.getElementById('results').style.display = 'block';
+
+      } catch (err) {
+        setProgress(0);
+        setStatus(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ── Valuation formulas ────────────────────────────────────────────────────
+
+    function grahamVal(eps, g) {
+      if (!eps || eps <= 0) return null;
+      return eps * (8.5 + 2 * g);
+    }
+
+    function dcfVal(fcfPS, wacc, g) {
+      if (!fcfPS || fcfPS <= 0 || wacc <= 0) return null;
+      let pv = 0;
+      const tg = Math.min(g / 100 * 0.35, 0.03);
+      for (let i = 1; i <= 10; i++) {
+        const rate = i <= 5 ? g / 100 : g / 100 * 0.5;
+        pv += (fcfPS * Math.pow(1 + rate, i)) / Math.pow(1 + wacc, i);
+      }
+      const termCF = fcfPS * Math.pow(1 + g / 100 * 0.5, 10) * (1 + tg);
+      pv += (termCF / (wacc - tg)) / Math.pow(1 + wacc, 10);
+      return pv > 0 ? pv : null;
+    }
+
+    function buffettVal(eps, roe, bv) {
+      if (!eps || eps <= 0) return null;
+      const mult = roe > 0.20 ? 18 : roe > 0.15 ? 15 : roe > 0.10 ? 12 : 10;
+      const earningsBased = eps * mult;
+      if (bv > 0 && roe > 0) {
+        const bvBased = bv * Math.pow(1 + roe, 10) / Math.pow(1.043, 10);
+        return (earningsBased + bvBased) / 2;
+      }
+      return earningsBased;
+    }
+
+    function lynchVal(eps, g) {
+      if (!eps || eps <= 0 || !g) return null;
+      return eps * g;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    const fmt = n => (n == null || isNaN(n)) ? 'N/D' : '$' + n.toFixed(2);
+    const fmtPct = n => (n == null) ? 'N/D' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+
+    function getVerdict(intrinsic, price) {
+      if (!intrinsic || intrinsic <= 0) return { text: 'N/D', cls: 'na', upside: null };
+      const diff = (intrinsic - price) / price * 100;
+      if (diff > 15) return { text: '↑ Subvalorada', cls: 'undervalued', upside: diff };
+      if (diff < -15) return { text: '↓ Sobrevalorada', cls: 'overvalued', upside: diff };
+      return { text: '≈ Precio Justo', cls: 'fair', upside: diff };
+    }
+
+    function buildMethods(d) {
+      return [
+        {
+          name: 'Fórmula de Graham', author: 'Benjamin Graham · 1949',
+          formula: 'V = EPS × (8.5 + 2g)',
+          inputs: [
+            { label: 'EPS (TTM) ($)', id: 'g-eps', val: +(d.eps || 0).toFixed(2) },
+            { label: 'Crecimiento est. (%)', id: 'g-g', val: +d.growthRate.toFixed(1) },
+          ],
+          // computeWith: use during initial render (DOM not ready yet)
+          computeWith: (v) => grahamVal(+v['g-eps'], +v['g-g']),
+          // compute: use after render, reads from live DOM inputs
+          compute: () => grahamVal(
+            +document.getElementById('g-eps').value,
+            +document.getElementById('g-g').value
+          ),
+        },
+        {
+          name: 'DCF — Flujo de Caja Descontado', author: 'John Burr Williams · 1938',
+          formula: 'V = Σ FCF(t)/(1+WACC)^t + Valor Terminal',
+          inputs: [
+            { label: 'FCF por acción ($)', id: 'd-fcf', val: d.fcfPerShare ? +d.fcfPerShare.toFixed(2) : 0 },
+            { label: 'WACC (%)', id: 'd-wacc', val: +(d.wacc * 100).toFixed(1) },
+            { label: 'Crecimiento (%)', id: 'd-g', val: +d.growthRate.toFixed(1) },
+          ],
+          computeWith: (v) => dcfVal(+v['d-fcf'], +v['d-wacc'] / 100, +v['d-g']),
+          compute: () => dcfVal(
+            +document.getElementById('d-fcf').value,
+            +document.getElementById('d-wacc').value / 100,
+            +document.getElementById('d-g').value
+          ),
+        },
+        {
+          name: 'Owner Earnings', author: 'Warren Buffett',
+          formula: 'V = EPS × Mult(ROE)  ⊕  BV × (1+ROE)^10',
+          inputs: [
+            { label: 'EPS ($)', id: 'b-eps', val: +(d.eps || 0).toFixed(2) },
+            { label: 'ROE (%)', id: 'b-roe', val: d.roe ? +(d.roe * 100).toFixed(1) : 12 },
+            { label: 'Book Value por acción ($)', id: 'b-bv', val: d.bookValue ? +d.bookValue.toFixed(2) : 0 },
+          ],
+          computeWith: (v) => buffettVal(+v['b-eps'], +v['b-roe'] / 100, +v['b-bv']),
+          compute: () => buffettVal(
+            +document.getElementById('b-eps').value,
+            +document.getElementById('b-roe').value / 100,
+            +document.getElementById('b-bv').value
+          ),
+        },
+        {
+          name: 'Método PEG', author: 'Peter Lynch',
+          formula: 'Precio Justo = EPS × g   (PEG = 1)',
+          inputs: [
+            { label: 'EPS ($)', id: 'l-eps', val: +(d.eps || 0).toFixed(2) },
+            { label: 'Crecimiento ganancias (%)', id: 'l-g', val: +d.growthRate.toFixed(1) },
+          ],
+          computeWith: (v) => lynchVal(+v['l-eps'], +v['l-g']),
+          compute: () => lynchVal(
+            +document.getElementById('l-eps').value,
+            +document.getElementById('l-g').value
+          ),
+        },
+      ];
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────
+
+    function renderResults(d) {
+      const chgClass = (d.change1d || 0) >= 0 ? 'pos' : 'neg';
+      const peg = (d.pe && d.growthRate) ? (d.pe / d.growthRate).toFixed(2) + 'x' : 'N/D';
+
+      const metrics = [
+        { label: 'EPS (TTM)', val: d.eps ? '$' + d.eps.toFixed(2) : 'N/D' },
+        { label: 'P/E Ratio', val: d.pe ? d.pe.toFixed(1) + 'x' : 'N/D' },
+        { label: 'P/Book', val: d.pbv ? d.pbv.toFixed(2) + 'x' : 'N/D' },
+        { label: 'ROE', val: d.roe ? (d.roe * 100).toFixed(1) + '%' : 'N/D' },
+        { label: 'PEG Ratio', val: peg },
+        { label: 'Crecimiento', val: d.growthRate.toFixed(1) + '% anual' },
+        { label: 'Beta', val: d.beta.toFixed(2) },
+        { label: 'WACC Est.', val: (d.wacc * 100).toFixed(1) + '%' },
+      ];
+
+      const methods = buildMethods(d);
+      window._m = methods;
+      window._price = d.price;
+
+      // Use computeWith(vals) here — DOM inputs don't exist yet at this point
+      const cardHTML = methods.map((m, i) => {
+        const vals = Object.fromEntries(m.inputs.map(inp => [inp.id, inp.val]));
+        const val = m.computeWith(vals);
+        const v = getVerdict(val, d.price);
+        const barW = v.upside != null ? Math.min(Math.abs(v.upside), 100) : 0;
+        const barC = v.cls === 'undervalued' ? 'var(--accent2)' : v.cls === 'overvalued' ? 'var(--accent3)' : 'var(--gold)';
+        return `
+      <div class="method-card">
+        <div class="method-author">${m.author}</div>
+        <div class="method-name">${m.name}</div>
+        <div class="method-formula">${m.formula}</div>
+        <div class="method-inputs">
+          ${m.inputs.map(inp => `
+            <div class="input-row">
+              <span class="input-label">${inp.label}</span>
+              <input class="input-value" id="${inp.id}" type="number" value="${inp.val}" step="0.01" oninput="recalc()" />
+            </div>`).join('')}
+        </div>
+        <div class="result-block">
+          <div class="result-label">Valor Intrínseco Estimado</div>
+          <div class="result-value" id="rv${i}">${val ? fmt(val) : 'N/D'}</div>
+          <span class="verdict-badge ${v.cls}" id="vd${i}">${v.text}${v.upside != null ? ' (' + fmtPct(v.upside) + ')' : ''}</span>
+          <div class="margin-bar"><div class="margin-fill" id="bar${i}" style="width:${barW}%;background:${barC}"></div></div>
+        </div>
+      </div>`;
+      }).join('');
+
+      const rowHTML = methods.map(m => {
+        const vals = Object.fromEntries(m.inputs.map(inp => [inp.id, inp.val]));
+        const val = m.computeWith(vals);
+        const v = getVerdict(val, d.price);
+        const uc = v.upside != null ? (v.upside >= 0 ? 'pos' : 'neg') : '';
+        return `
+      <tr>
+        <td class="tbl-serif">${m.name}</td>
+        <td class="tbl-mono">${val ? fmt(val) : 'N/D'}</td>
+        <td class="tbl-mono" style="color:var(--muted)">$${d.price.toFixed(2)}</td>
+        <td class="tbl-mono ${uc}">${v.upside != null ? fmtPct(v.upside) : 'N/D'}</td>
+        <td><span class="verdict-badge ${v.cls}" style="font-size:10px;padding:3px 8px">${v.text}</span></td>
+      </tr>`;
+      }).join('');
+
+      document.getElementById('results').innerHTML = `
+    <div class="company-header" style="animation:fadeUp 0.5s ease both">
+      <div class="company-info">
+        <h2>${d.name}</h2>
+        <div class="company-meta">
+          <span class="company-ticker">${d.ticker}</span>
+          <span class="company-sector">${d.sector || ''}</span>
+        </div>
+      </div>
+      <div class="company-price-block">
+        <div class="current-price">$${d.price.toFixed(2)}</div>
+        <div class="price-change ${chgClass}">${fmtPct(d.change1d || 0)} hoy</div>
+      </div>
+    </div>
+
+    <div class="metrics-strip" style="animation:fadeUp 0.5s 0.1s ease both">
+      ${metrics.map(m => `
+        <div class="metric-cell">
+          <div class="metric-label">${m.label}</div>
+          <div class="metric-val">${m.val}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="methods-grid">${cardHTML}</div>
+
+    <div class="comparison-section" style="animation:fadeUp 0.5s 0.4s ease both">
+      <h3 class="section-title">Resumen comparativo</h3>
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Método</th><th>Valor Intrínseco</th><th>Precio Actual</th><th>Potencial</th><th>Señal</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body">${rowHTML}</tbody>
+      </table>
+    </div>
+
+    <p class="disclaimer">
+      ⚠️ Esta herramienta es educativa. Las valuaciones son estimaciones basadas en datos públicos y supuestos simplificados.<br>
+      No constituye asesoramiento financiero. Consultá a un profesional antes de invertir.
+    </p>
+  `;
+    }
+
+    function recalc() {
+      if (!window._m) return;
+      window._m.forEach((m, i) => {
+        const val = m.compute();
+        const v = getVerdict(val, window._price);
+        const barW = v.upside != null ? Math.min(Math.abs(v.upside), 100) : 0;
+        const barC = v.cls === 'undervalued' ? 'var(--accent2)' : v.cls === 'overvalued' ? 'var(--accent3)' : 'var(--gold)';
+        document.getElementById('rv' + i).textContent = val ? fmt(val) : 'N/D';
+        const vd = document.getElementById('vd' + i);
+        vd.className = 'verdict-badge ' + v.cls;
+        vd.textContent = v.text + (v.upside != null ? ' (' + fmtPct(v.upside) + ')' : '');
+        const bar = document.getElementById('bar' + i);
+        bar.style.width = barW + '%';
+        bar.style.background = barC;
+      });
+      document.getElementById('tbl-body').innerHTML = window._m.map(m => {
+        const val = m.compute();
+        const v = getVerdict(val, window._price);
+        const uc = v.upside != null ? (v.upside >= 0 ? 'pos' : 'neg') : '';
+        return `
+      <tr>
+        <td class="tbl-serif">${m.name}</td>
+        <td class="tbl-mono">${val ? fmt(val) : 'N/D'}</td>
+        <td class="tbl-mono" style="color:var(--muted)">$${window._price.toFixed(2)}</td>
+        <td class="tbl-mono ${uc}">${v.upside != null ? fmtPct(v.upside) : 'N/D'}</td>
+        <td><span class="verdict-badge ${v.cls}" style="font-size:10px;padding:3px 8px">${v.text}</span></td>
+      </tr>`;
+      }).join('');
+    }
+  </script>
+</body>
+
+</html>
