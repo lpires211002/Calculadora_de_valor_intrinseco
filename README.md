@@ -1,4 +1,4 @@
-# Calculadora de Valor Intrínseco
+# Calculadora de Valor Intrínseco (ValorAcción)
 
 Esta herramienta permite calcular el valor intrínseco de las acciones utilizando datos financieros en tiempo real. Está compuesta por un servidor proxy local en Python y una interfaz frontend en HTML/JS.
 
