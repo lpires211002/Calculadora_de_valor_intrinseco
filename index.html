@@ -932,14 +932,29 @@
     }
     
     async function submitAuth() {
-      const u = document.getElementById('auth-user').value;
+      const u = document.getElementById('auth-user').value.trim();
       const p = document.getElementById('auth-pass').value;
       const err = document.getElementById('auth-error');
       err.innerText = '';
+      
+      if (!u || !p) {
+        err.innerText = 'Faltan datos';
+        return;
+      }
+
       try {
-        const data = await apiCall(`/api/${authMode}`, 'POST', {username: u, password: p});
-        authToken = data.token;
-        authUser = data.username;
+        let users = JSON.parse(localStorage.getItem('valacc_users') || '{}');
+        
+        if (authMode === 'signup') {
+          if (users[u]) throw new Error('El usuario ya existe');
+          users[u] = p;
+          localStorage.setItem('valacc_users', JSON.stringify(users));
+        } else {
+          if (users[u] !== p) throw new Error('Credenciales incorrectas');
+        }
+
+        authToken = 'local-token-' + u;
+        authUser = u;
         localStorage.setItem('valacc_token', authToken);
         localStorage.setItem('valacc_user', authUser);
         closeModal();
