@@ -1040,7 +1040,7 @@
     async function fetchYahooData(ticker) {
       let resp;
       try {
-        resp = await fetch(`${API_BASE}/quote?symbol=${encodeURIComponent(ticker)}`);
+        resp = await fetch(`${API_BASE}/api/quote?symbol=${encodeURIComponent(ticker)}`);
       } catch (e) {
         throw new Error(
           'No se pudo conectar al servidor local. ' +
