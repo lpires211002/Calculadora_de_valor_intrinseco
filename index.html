@@ -679,11 +679,161 @@
         transform: translateY(0);
       }
     }
+    /* Auth Modal & Header */
+    .auth-header {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      transition: all 0.2s;
+    }
+    .btn-outline:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 10, 15, 0.8);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 32px;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 400px;
+    }
+    .modal h3 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 24px;
+      margin-bottom: 24px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .form-group input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px;
+      border-radius: 4px;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .form-error {
+      color: var(--accent3);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    
+    /* Portfolio */
+    .portfolio-section {
+      display: none;
+      margin-bottom: 48px;
+    }
+    .portfolio-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .portfolio-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 12px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .portfolio-item:hover {
+      border-color: var(--accent);
+    }
+    .portfolio-ticker {
+      font-family: 'DM Mono', monospace;
+      font-weight: bold;
+      color: var(--accent);
+    }
+    .btn-remove {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0 4px;
+    }
+    .btn-remove:hover {
+      color: var(--accent3);
+    }
+    .save-btn {
+      background: rgba(200, 240, 74, 0.1);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 6px 16px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+    }
+    .save-btn:hover {
+      background: var(--accent);
+      color: var(--bg);
+    }
   </style>
 </head>
 
 <body>
   <div class="wrapper">
+    <div class="auth-header" id="auth-header">
+      <button class="btn-outline" onclick="openModal('login')">Ingresar</button>
+      <button class="btn-outline" onclick="openModal('signup')">Registrarse</button>
+    </div>
+
+    <div class="modal-overlay" id="auth-modal">
+      <div class="modal">
+        <h3 id="modal-title">Ingresar</h3>
+        <div class="form-group">
+          <label>Usuario</label>
+          <input type="text" id="auth-user" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input type="password" id="auth-pass" autocomplete="off" />
+        </div>
+        <div class="form-error" id="auth-error"></div>
+        <button class="search-btn" style="width: 100%; margin-top: 16px" onclick="submitAuth()">Continuar</button>
+        <button class="btn-outline" style="width: 100%; border:none; margin-top: 8px" onclick="closeModal()">Cancelar</button>
+      </div>
+    </div>
 
     <header>
       <div class="logo-tag">↑ Value Investing Tools</div>
@@ -718,6 +868,11 @@
       </div>
     </div>
 
+    <div class="portfolio-section" id="portfolio-section">
+      <h3 style="font-family: 'DM Serif Display', serif; font-size: 24px;">Mi Cartera</h3>
+      <div class="portfolio-grid" id="portfolio-grid"></div>
+    </div>
+
     <div id="status-area"></div>
     <div id="results"></div>
 
@@ -730,6 +885,129 @@
     const API_BASE = '';
 
     let currentData = {};
+    let authToken = localStorage.getItem('valacc_token');
+    let authUser = localStorage.getItem('valacc_user');
+    let portfolios = [];
+
+    async function apiCall(endpoint, method = 'GET', body = null) {
+      const headers = {};
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      if (body) headers['Content-Type'] = 'application/json';
+      const res = await fetch(API_BASE + endpoint, { method, headers, body: body ? JSON.stringify(body) : null });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data.error || 'Error del servidor');
+      return data;
+    }
+
+    function initAuth() {
+      const header = document.getElementById('auth-header');
+      if (authToken) {
+        header.innerHTML = `
+          <span style="font-size:12px; color:var(--muted); font-family:'DM Mono',monospace;">Usuario: ${authUser}</span>
+          <button class="btn-outline" onclick="logout()">Salir</button>
+        `;
+        document.getElementById('portfolio-section').style.display = 'block';
+        loadPortfolio();
+      } else {
+        header.innerHTML = `
+          <button class="btn-outline" onclick="openModal('login')">Ingresar</button>
+          <button class="btn-outline" onclick="openModal('signup')">Registrarse</button>
+        `;
+        document.getElementById('portfolio-section').style.display = 'none';
+      }
+    }
+
+    let authMode = 'login';
+    function openModal(mode) {
+      authMode = mode;
+      document.getElementById('modal-title').innerText = mode === 'login' ? 'Ingresar' : 'Registrarse';
+      document.getElementById('auth-user').value = '';
+      document.getElementById('auth-pass').value = '';
+      document.getElementById('auth-error').innerText = '';
+      document.getElementById('auth-modal').style.display = 'flex';
+    }
+    
+    function closeModal() {
+      document.getElementById('auth-modal').style.display = 'none';
+    }
+    
+    async function submitAuth() {
+      const u = document.getElementById('auth-user').value;
+      const p = document.getElementById('auth-pass').value;
+      const err = document.getElementById('auth-error');
+      err.innerText = '';
+      try {
+        const data = await apiCall(`/api/${authMode}`, 'POST', {username: u, password: p});
+        authToken = data.token;
+        authUser = data.username;
+        localStorage.setItem('valacc_token', authToken);
+        localStorage.setItem('valacc_user', authUser);
+        closeModal();
+        initAuth();
+      } catch(e) { err.innerText = e.message; }
+    }
+
+    function logout() {
+      authToken = null; authUser = null;
+      localStorage.removeItem('valacc_token');
+      localStorage.removeItem('valacc_user');
+      portfolios = [];
+      initAuth();
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('results').style.display = 'none';
+    }
+
+    async function loadPortfolio() {
+      try {
+        const data = await apiCall('/api/portfolio');
+        portfolios = data.tickers || [];
+        renderPortfolio();
+      } catch(e) { console.error(e); }
+    }
+
+    function renderPortfolio() {
+      const grid = document.getElementById('portfolio-grid');
+      if (!portfolios.length) {
+        grid.innerHTML = '<span style="color:var(--muted); font-size:13px">No tienes acciones guardadas.</span>';
+        return;
+      }
+      grid.innerHTML = portfolios.map(t => `
+        <div class="portfolio-item">
+          <span class="portfolio-ticker" onclick="quickSearch('${t}')">${t}</span>
+          <button class="btn-remove" onclick="removePortfolio('${t}', event)">×</button>
+        </div>
+      `).join('');
+    }
+
+    async function togglePortfolio(ticker) {
+      if (!authToken) {
+        alert("Debes iniciar sesión para guardar carteras.");
+        return openModal('login');
+      }
+      try {
+        if (portfolios.includes(ticker)) {
+          await apiCall('/api/portfolio', 'DELETE', {ticker});
+          portfolios = portfolios.filter(t => t !== ticker);
+        } else {
+          await apiCall('/api/portfolio', 'POST', {ticker});
+          portfolios.push(ticker);
+        }
+        renderPortfolio();
+        if (currentData.ticker === ticker) renderResults(currentData);
+      } catch(e) { console.error(e); }
+    }
+
+    async function removePortfolio(ticker, ev) {
+      ev.stopPropagation();
+      try {
+        await apiCall('/api/portfolio', 'DELETE', {ticker});
+        portfolios = portfolios.filter(t => t !== ticker);
+        renderPortfolio();
+        if (currentData.ticker === ticker) renderResults(currentData);
+      } catch(e) { console.error(e); }
+    }
+    
+    window.addEventListener('DOMContentLoaded', initAuth);
 
     document.getElementById('ticker-input').addEventListener('keydown', e => {
       if (e.key === 'Enter') analyzeStock();
@@ -762,7 +1040,7 @@
     async function fetchYahooData(ticker) {
       let resp;
       try {
-        resp = await fetch(`${API_BASE}/api/quote?symbol=${encodeURIComponent(ticker)}`);
+        resp = await fetch(`${API_BASE}/quote?symbol=${encodeURIComponent(ticker)}`);
       } catch (e) {
         throw new Error(
           'No se pudo conectar al servidor local. ' +
@@ -1038,8 +1316,13 @@
         </div>
       </div>
       <div class="company-price-block">
-        <div class="current-price">$${d.price.toFixed(2)}</div>
-        <div class="price-change ${chgClass}">${fmtPct(d.change1d || 0)} hoy</div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+          <button class="save-btn" onclick="togglePortfolio('${d.ticker}')">
+            ${portfolios.includes(d.ticker) ? '★ En Cartera' : '☆ Guardar'}
+          </button>
+          <div class="current-price">$${d.price.toFixed(2)}</div>
+          <div class="price-change ${chgClass}">${fmtPct(d.change1d || 0)} hoy</div>
+        </div>
       </div>
     </div>
 
