@@ -15,15 +15,24 @@ import hashlib
 
 PORT = 8765
 HTML_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "database.db")
+import psycopg2
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def get_db():
+    return psycopg2.connect(os.environ.get("POSTGRES_URL_NON_POOLING", os.environ.get("POSTGRES_URL")))
 
 def init_db():
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password_hash TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS portfolios (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, ticker TEXT, UNIQUE(username, ticker))''')
-        conn.commit()
+    try:
+        with get_db() as conn:
+            with conn.cursor() as c:
+                c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password_hash TEXT)''')
+                c.execute('''CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT)''')
+                c.execute('''CREATE TABLE IF NOT EXISTS portfolios (id SERIAL PRIMARY KEY, username TEXT, ticker TEXT, UNIQUE(username, ticker))''')
+                conn.commit()
+    except Exception as e:
+        print("Warning: could not initialize Postgres DB", e)
 
 init_db()
 
@@ -106,11 +115,11 @@ class Handler(BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization")
         if not auth or not auth.startswith("Bearer "): return None
         token = auth.split(" ")[1]
-        with sqlite3.connect(DB_FILE) as conn:
-            c = conn.cursor()
-            c.execute("SELECT username FROM sessions WHERE token = ?", (token,))
-            row = c.fetchone()
-            if row: return row[0]
+        with get_db() as conn:
+            with conn.cursor() as c:
+                c.execute("SELECT username FROM sessions WHERE token = %s", (token,))
+                row = c.fetchone()
+                if row: return row[0]
         return None
 
     def _json_success(self, data):
@@ -153,10 +162,10 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/portfolio":
             user = self.get_user_from_auth()
             if not user: return self._json_error(401, "Unauthorized")
-            with sqlite3.connect(DB_FILE) as conn:
-                c = conn.cursor()
-                c.execute("SELECT ticker FROM portfolios WHERE username = ?", (user,))
-                tickers = [r[0] for r in c.fetchall()]
+            with get_db() as conn:
+                with conn.cursor() as c:
+                    c.execute("SELECT ticker FROM portfolios WHERE username = %s", (user,))
+                    tickers = [r[0] for r in c.fetchall()]
             return self._json_success({"tickers": tickers})
 
         # ── / → serve HTML ────────────────────────────────────────────────
@@ -187,46 +196,47 @@ class Handler(BaseHTTPRequestHandler):
             username = req.get("username", "").strip()
             password = req.get("password", "")
             if not username or not password: return self._json_error(400, "Faltan datos")
-            with sqlite3.connect(DB_FILE) as conn:
-                c = conn.cursor()
-                try:
-                    c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, hash_password(password)))
-                    conn.commit()
-                except sqlite3.IntegrityError:
-                    return self._json_error(400, "El usuario ya existe")
+            with get_db() as conn:
+                with conn.cursor() as c:
+                    try:
+                        c.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)", (username, hash_password(password)))
+                        conn.commit()
+                    except psycopg2.IntegrityError:
+                        return self._json_error(400, "El usuario ya existe")
             token = str(uuid.uuid4())
-            with sqlite3.connect(DB_FILE) as conn:
-                conn.cursor().execute("INSERT INTO sessions (token, username) VALUES (?, ?)", (token, username))
-                conn.commit()
+            with get_db() as conn:
+                with conn.cursor() as c:
+                    c.execute("INSERT INTO sessions (token, username) VALUES (%s, %s)", (token, username))
+                    conn.commit()
             return self._json_success({"token": token, "username": username})
 
         if parsed.path == "/api/login":
             username = req.get("username", "").strip()
             password = req.get("password", "")
-            with sqlite3.connect(DB_FILE) as conn:
-                c = conn.cursor()
-                c.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
-                row = c.fetchone()
-                if row and row[0] == hash_password(password):
-                    token = str(uuid.uuid4())
-                    c.execute("INSERT INTO sessions (token, username) VALUES (?, ?)", (token, username))
-                    conn.commit()
-                    return self._json_success({"token": token, "username": username})
-                else:
-                    return self._json_error(401, "Credenciales incorrectas")
+            with get_db() as conn:
+                with conn.cursor() as c:
+                    c.execute("SELECT password_hash FROM users WHERE username = %s", (username,))
+                    row = c.fetchone()
+                    if row and row[0] == hash_password(password):
+                        token = str(uuid.uuid4())
+                        c.execute("INSERT INTO sessions (token, username) VALUES (%s, %s)", (token, username))
+                        conn.commit()
+                        return self._json_success({"token": token, "username": username})
+                    else:
+                        return self._json_error(401, "Credenciales incorrectas")
 
         if parsed.path == "/api/portfolio":
             user = self.get_user_from_auth()
             if not user: return self._json_error(401, "Unauthorized")
             ticker = req.get("ticker", "").strip().upper()
             if not ticker: return self._json_error(400, "Falta el ticker")
-            with sqlite3.connect(DB_FILE) as conn:
-                c = conn.cursor()
-                try:
-                    c.execute("INSERT INTO portfolios (username, ticker) VALUES (?, ?)", (user, ticker))
-                    conn.commit()
-                except sqlite3.IntegrityError:
-                    pass
+            with get_db() as conn:
+                with conn.cursor() as c:
+                    try:
+                        c.execute("INSERT INTO portfolios (username, ticker) VALUES (%s, %s)", (user, ticker))
+                        conn.commit()
+                    except psycopg2.IntegrityError:
+                        pass
             return self._json_success({"success": True})
 
         self._json_error(404, "Not found")
@@ -244,10 +254,10 @@ class Handler(BaseHTTPRequestHandler):
                 except: pass
             ticker = req.get("ticker", "").strip().upper()
             if not ticker: return self._json_error(400, "Falta el ticker")
-            with sqlite3.connect(DB_FILE) as conn:
-                c = conn.cursor()
-                c.execute("DELETE FROM portfolios WHERE username = ? AND ticker = ?", (user, ticker))
-                conn.commit()
+            with get_db() as conn:
+                with conn.cursor() as c:
+                    c.execute("DELETE FROM portfolios WHERE username = %s AND ticker = %s", (user, ticker))
+                    conn.commit()
             return self._json_success({"success": True})
 
         self._json_error(404, "Not found")

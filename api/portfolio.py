@@ -1,16 +1,21 @@
 import json
+import os
 from http.server import BaseHTTPRequestHandler
-import sqlite3
+import psycopg2
+from dotenv import load_dotenv
 
-DB_FILE = "/tmp/database.db"
+load_dotenv()
+
+def get_db():
+    return psycopg2.connect(os.environ.get("POSTGRES_URL_NON_POOLING", os.environ.get("POSTGRES_URL")))
 
 def init_db():
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password_hash TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS portfolios (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, ticker TEXT, UNIQUE(username, ticker))''')
-        conn.commit()
+    with get_db() as conn:
+        with conn.cursor() as c:
+            c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password_hash TEXT)''')
+            c.execute('''CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT)''')
+            c.execute('''CREATE TABLE IF NOT EXISTS portfolios (id SERIAL PRIMARY KEY, username TEXT, ticker TEXT, UNIQUE(username, ticker))''')
+            conn.commit()
 
 class handler(BaseHTTPRequestHandler):
     def send_cors(self):
@@ -34,11 +39,11 @@ class handler(BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization")
         if not auth or not auth.startswith("Bearer "): return None
         token = auth.split(" ")[1]
-        with sqlite3.connect(DB_FILE) as conn:
-            c = conn.cursor()
-            c.execute("SELECT username FROM sessions WHERE token = ?", (token,))
-            row = c.fetchone()
-            if row: return row[0]
+        with get_db() as conn:
+            with conn.cursor() as c:
+                c.execute("SELECT username FROM sessions WHERE token = %s", (token,))
+                row = c.fetchone()
+                if row: return row[0]
         return None
 
     def do_GET(self):
@@ -46,10 +51,10 @@ class handler(BaseHTTPRequestHandler):
         user = self.get_user_from_auth()
         if not user: return self._json_response(401, {"error": "Unauthorized"})
         
-        with sqlite3.connect(DB_FILE) as conn:
-            c = conn.cursor()
-            c.execute("SELECT ticker FROM portfolios WHERE username = ?", (user,))
-            tickers = [r[0] for r in c.fetchall()]
+        with get_db() as conn:
+            with conn.cursor() as c:
+                c.execute("SELECT ticker FROM portfolios WHERE username = %s", (user,))
+                tickers = [r[0] for r in c.fetchall()]
         return self._json_response(200, {"tickers": tickers})
 
     def do_POST(self):
@@ -67,13 +72,13 @@ class handler(BaseHTTPRequestHandler):
         ticker = req.get("ticker", "").strip().upper()
         if not ticker: return self._json_response(400, {"error": "Falta el ticker"})
         
-        with sqlite3.connect(DB_FILE) as conn:
-            c = conn.cursor()
-            try:
-                c.execute("INSERT INTO portfolios (username, ticker) VALUES (?, ?)", (user, ticker))
-                conn.commit()
-            except sqlite3.IntegrityError:
-                pass
+        with get_db() as conn:
+            with conn.cursor() as c:
+                try:
+                    c.execute("INSERT INTO portfolios (username, ticker) VALUES (%s, %s)", (user, ticker))
+                    conn.commit()
+                except psycopg2.IntegrityError:
+                    pass
         return self._json_response(200, {"success": True})
 
     def do_DELETE(self):
@@ -91,8 +96,8 @@ class handler(BaseHTTPRequestHandler):
         ticker = req.get("ticker", "").strip().upper()
         if not ticker: return self._json_response(400, {"error": "Falta el ticker"})
         
-        with sqlite3.connect(DB_FILE) as conn:
-            c = conn.cursor()
-            c.execute("DELETE FROM portfolios WHERE username = ? AND ticker = ?", (user, ticker))
-            conn.commit()
+        with get_db() as conn:
+            with conn.cursor() as c:
+                c.execute("DELETE FROM portfolios WHERE username = %s AND ticker = %s", (user, ticker))
+                conn.commit()
         return self._json_response(200, {"success": True})

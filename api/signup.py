@@ -1,19 +1,24 @@
 import json
+import os
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
-import sqlite3
+import psycopg2
 import uuid
 import hashlib
+from dotenv import load_dotenv
 
-DB_FILE = "/tmp/database.db"
+load_dotenv()
+
+def get_db():
+    return psycopg2.connect(os.environ.get("POSTGRES_URL_NON_POOLING", os.environ.get("POSTGRES_URL")))
 
 def init_db():
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password_hash TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS portfolios (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, ticker TEXT, UNIQUE(username, ticker))''')
-        conn.commit()
+    with get_db() as conn:
+        with conn.cursor() as c:
+            c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password_hash TEXT)''')
+            c.execute('''CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT)''')
+            c.execute('''CREATE TABLE IF NOT EXISTS portfolios (id SERIAL PRIMARY KEY, username TEXT, ticker TEXT, UNIQUE(username, ticker))''')
+            conn.commit()
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -50,17 +55,18 @@ class handler(BaseHTTPRequestHandler):
         if not username or not password:
             return self._json_response(400, {"error": "Faltan datos"})
             
-        with sqlite3.connect(DB_FILE) as conn:
-            c = conn.cursor()
-            try:
-                c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, hash_password(password)))
-                conn.commit()
-            except sqlite3.IntegrityError:
-                return self._json_response(400, {"error": "El usuario ya existe"})
+        with get_db() as conn:
+            with conn.cursor() as c:
+                try:
+                    c.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)", (username, hash_password(password)))
+                    conn.commit()
+                except psycopg2.IntegrityError:
+                    return self._json_response(400, {"error": "El usuario ya existe"})
                 
         token = str(uuid.uuid4())
-        with sqlite3.connect(DB_FILE) as conn:
-            conn.cursor().execute("INSERT INTO sessions (token, username) VALUES (?, ?)", (token, username))
-            conn.commit()
+        with get_db() as conn:
+            with conn.cursor() as c:
+                c.execute("INSERT INTO sessions (token, username) VALUES (%s, %s)", (token, username))
+                conn.commit()
             
         return self._json_response(200, {"token": token, "username": username})

@@ -998,18 +998,11 @@
       }
 
       try {
-        let users = JSON.parse(localStorage.getItem('valacc_users') || '{}');
+        const endpoint = authMode === 'signup' ? '/api/signup' : '/api/login';
+        const res = await apiCall(endpoint, 'POST', { username: u, password: p });
         
-        if (authMode === 'signup') {
-          if (users[u]) throw new Error('El usuario ya existe');
-          users[u] = p;
-          localStorage.setItem('valacc_users', JSON.stringify(users));
-        } else {
-          if (users[u] !== p) throw new Error('Credenciales incorrectas');
-        }
-
-        authToken = 'local-token-' + u;
-        authUser = u;
+        authToken = res.token;
+        authUser = res.username;
         localStorage.setItem('valacc_token', authToken);
         localStorage.setItem('valacc_user', authUser);
         closeModal();
@@ -1029,8 +1022,8 @@
 
     async function loadPortfolio() {
       try {
-        const stored = localStorage.getItem(`valacc_portfolio_${authUser}`);
-        portfolios = stored ? JSON.parse(stored) : [];
+        const res = await apiCall('/api/portfolio', 'GET');
+        portfolios = res.tickers || [];
         renderPortfolio();
       } catch(e) { 
         portfolios = [];
@@ -1059,24 +1052,25 @@
       }
       try {
         if (portfolios.includes(ticker)) {
+          await apiCall('/api/portfolio', 'DELETE', { ticker });
           portfolios = portfolios.filter(t => t !== ticker);
         } else {
+          await apiCall('/api/portfolio', 'POST', { ticker });
           portfolios.push(ticker);
         }
-        localStorage.setItem(`valacc_portfolio_${authUser}`, JSON.stringify(portfolios));
         renderPortfolio();
         if (currentData.ticker === ticker) renderResults(currentData);
-      } catch(e) { console.error(e); }
+      } catch(e) { alert(e.message); }
     }
 
     async function removePortfolio(ticker, ev) {
       ev.stopPropagation();
       try {
+        await apiCall('/api/portfolio', 'DELETE', { ticker });
         portfolios = portfolios.filter(t => t !== ticker);
-        localStorage.setItem(`valacc_portfolio_${authUser}`, JSON.stringify(portfolios));
         renderPortfolio();
         if (currentData.ticker === ticker) renderResults(currentData);
-      } catch(e) { console.error(e); }
+      } catch(e) { alert(e.message); }
     }
     
     window.addEventListener('DOMContentLoaded', initAuth);
