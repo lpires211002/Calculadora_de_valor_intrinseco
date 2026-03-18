@@ -9,9 +9,26 @@ import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import os
+import sqlite3
+import uuid
+import hashlib
 
 PORT = 8765
-HTML_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stock-valuator (2).html")
+HTML_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "database.db")
+
+def init_db():
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password_hash TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS portfolios (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, ticker TEXT, UNIQUE(username, ticker))''')
+        conn.commit()
+
+init_db()
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
 try:
     import yfinance as yf
@@ -78,12 +95,31 @@ def get_stock_data(symbol: str) -> dict:
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        print(f"  {self.address_string()} — {fmt % args}")
+        pass # Silence logs
 
     def send_cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+    def get_user_from_auth(self):
+        auth = self.headers.get("Authorization")
+        if not auth or not auth.startswith("Bearer "): return None
+        token = auth.split(" ")[1]
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute("SELECT username FROM sessions WHERE token = ?", (token,))
+            row = c.fetchone()
+            if row: return row[0]
+        return None
+
+    def _json_success(self, data):
+        body = json.dumps(data).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_cors()
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -113,8 +149,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._json_error(404, str(e))
             return
 
+        # ── /api/portfolio ───────────────────────────────────────────────
+        if parsed.path == "/api/portfolio":
+            user = self.get_user_from_auth()
+            if not user: return self._json_error(401, "Unauthorized")
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                c.execute("SELECT ticker FROM portfolios WHERE username = ?", (user,))
+                tickers = [r[0] for r in c.fetchall()]
+            return self._json_success({"tickers": tickers})
+
         # ── / → serve HTML ────────────────────────────────────────────────
-        if parsed.path in ("/", "/index.html"):
+        if parsed.path in ("/", "/index.html") or parsed.path == "":
             try:
                 with open(HTML_FILE, "rb") as f:
                     content = f.read()
@@ -125,6 +171,84 @@ class Handler(BaseHTTPRequestHandler):
             except FileNotFoundError:
                 self._json_error(404, f"HTML no encontrado: {HTML_FILE}")
             return
+
+        self._json_error(404, "Not found")
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length) if content_length > 0 else b""
+        req = {}
+        if post_data:
+            try: req = json.loads(post_data.decode())
+            except: pass
+
+        if parsed.path == "/api/signup":
+            username = req.get("username", "").strip()
+            password = req.get("password", "")
+            if not username or not password: return self._json_error(400, "Faltan datos")
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                try:
+                    c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, hash_password(password)))
+                    conn.commit()
+                except sqlite3.IntegrityError:
+                    return self._json_error(400, "El usuario ya existe")
+            token = str(uuid.uuid4())
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.cursor().execute("INSERT INTO sessions (token, username) VALUES (?, ?)", (token, username))
+                conn.commit()
+            return self._json_success({"token": token, "username": username})
+
+        if parsed.path == "/api/login":
+            username = req.get("username", "").strip()
+            password = req.get("password", "")
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                c.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
+                row = c.fetchone()
+                if row and row[0] == hash_password(password):
+                    token = str(uuid.uuid4())
+                    c.execute("INSERT INTO sessions (token, username) VALUES (?, ?)", (token, username))
+                    conn.commit()
+                    return self._json_success({"token": token, "username": username})
+                else:
+                    return self._json_error(401, "Credenciales incorrectas")
+
+        if parsed.path == "/api/portfolio":
+            user = self.get_user_from_auth()
+            if not user: return self._json_error(401, "Unauthorized")
+            ticker = req.get("ticker", "").strip().upper()
+            if not ticker: return self._json_error(400, "Falta el ticker")
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                try:
+                    c.execute("INSERT INTO portfolios (username, ticker) VALUES (?, ?)", (user, ticker))
+                    conn.commit()
+                except sqlite3.IntegrityError:
+                    pass
+            return self._json_success({"success": True})
+
+        self._json_error(404, "Not found")
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/portfolio":
+            user = self.get_user_from_auth()
+            if not user: return self._json_error(401, "Unauthorized")
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b""
+            req = {}
+            if post_data:
+                try: req = json.loads(post_data.decode())
+                except: pass
+            ticker = req.get("ticker", "").strip().upper()
+            if not ticker: return self._json_error(400, "Falta el ticker")
+            with sqlite3.connect(DB_FILE) as conn:
+                c = conn.cursor()
+                c.execute("DELETE FROM portfolios WHERE username = ? AND ticker = ?", (user, ticker))
+                conn.commit()
+            return self._json_success({"success": True})
 
         self._json_error(404, "Not found")
 
