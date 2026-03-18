@@ -808,6 +808,61 @@
       background: var(--accent);
       color: var(--bg);
     }
+    
+    /* Responsive Mobile Design */
+    @media (max-width: 768px) {
+      .wrapper {
+        padding: 80px 16px 40px;
+      }
+      .auth-header {
+        top: 16px;
+        right: 16px;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+      }
+      h1 {
+        font-size: 36px;
+      }
+      .search-box {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px;
+        gap: 16px;
+      }
+      .search-btn {
+        width: 100%;
+      }
+      .company-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      .company-price-block {
+        text-align: left;
+        width: 100%;
+      }
+      .company-price-block > div {
+        align-items: flex-start !important;
+      }
+      .methods-grid {
+        grid-template-columns: 1fr;
+      }
+      .method-card {
+        padding: 20px;
+      }
+      .comparison-section {
+        padding: 16px;
+        overflow-x: auto;
+      }
+      .comparison-table {
+        min-width: 600px;
+      }
+      .modal {
+        padding: 24px;
+        margin: 16px;
+      }
+    }
   </style>
 </head>
 
