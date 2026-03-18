@@ -1,6 +1,8 @@
 import json
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+import os
+os.environ["YFINANCE_CACHE_DIR"] = "/tmp/yfinance_cache"
 import yfinance as yf
 
 def get_stock_data(symbol: str) -> dict:
