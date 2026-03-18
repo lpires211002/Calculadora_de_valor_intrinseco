@@ -959,10 +959,13 @@
 
     async function loadPortfolio() {
       try {
-        const data = await apiCall('/api/portfolio');
-        portfolios = data.tickers || [];
+        const stored = localStorage.getItem(`valacc_portfolio_${authUser}`);
+        portfolios = stored ? JSON.parse(stored) : [];
         renderPortfolio();
-      } catch(e) { console.error(e); }
+      } catch(e) { 
+        portfolios = [];
+        console.error(e); 
+      }
     }
 
     function renderPortfolio() {
@@ -986,12 +989,11 @@
       }
       try {
         if (portfolios.includes(ticker)) {
-          await apiCall('/api/portfolio', 'DELETE', {ticker});
           portfolios = portfolios.filter(t => t !== ticker);
         } else {
-          await apiCall('/api/portfolio', 'POST', {ticker});
           portfolios.push(ticker);
         }
+        localStorage.setItem(`valacc_portfolio_${authUser}`, JSON.stringify(portfolios));
         renderPortfolio();
         if (currentData.ticker === ticker) renderResults(currentData);
       } catch(e) { console.error(e); }
@@ -1000,8 +1002,8 @@
     async function removePortfolio(ticker, ev) {
       ev.stopPropagation();
       try {
-        await apiCall('/api/portfolio', 'DELETE', {ticker});
         portfolios = portfolios.filter(t => t !== ticker);
+        localStorage.setItem(`valacc_portfolio_${authUser}`, JSON.stringify(portfolios));
         renderPortfolio();
         if (currentData.ticker === ticker) renderResults(currentData);
       } catch(e) { console.error(e); }
